@@ -20,7 +20,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-using Quartz.Logging;
 using Quartz.Util;
 
 namespace Quartz.Listener
@@ -37,17 +36,6 @@ namespace Quartz.Listener
     /// <seealso cref="ISchedulerListener" />
     public abstract class SchedulerListenerSupport : ISchedulerListener
     {
-        protected SchedulerListenerSupport()
-        {
-            Log = LogProvider.GetLogger(GetType());
-        }
-
-        /// <summary>
-        /// Get the <see cref="ILog" /> for this
-        /// type's category.  This should be used by subclasses for logging.
-        /// </summary>
-        protected ILog Log { get; }
-
         public virtual Task JobScheduled(
             ITrigger trigger, 
             CancellationToken cancellationToken = default(CancellationToken))
@@ -107,6 +95,13 @@ namespace Quartz.Listener
         public virtual Task JobDeleted(
             JobKey jobKey,
             CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return TaskUtil.CompletedTask;
+        }
+
+        public Task JobInterrupted(
+            JobKey jobKey,
+            CancellationToken cancellationToken = new CancellationToken())
         {
             return TaskUtil.CompletedTask;
         }

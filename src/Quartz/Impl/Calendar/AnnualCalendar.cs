@@ -21,6 +21,7 @@
 
 using System;
 using System.Collections.Generic;
+
 using Quartz.Util;
 
 namespace Quartz.Impl.Calendar
@@ -67,7 +68,7 @@ namespace Quartz.Impl.Calendar
         /// <param name="info"></param>
         /// <param name="context"></param>
         protected AnnualCalendar(
-			System.Runtime.Serialization.SerializationInfo info, 
+			System.Runtime.Serialization.SerializationInfo info,
 			System.Runtime.Serialization.StreamingContext context) : base(info, context)
         {
             int version;
@@ -121,7 +122,7 @@ namespace Quartz.Impl.Calendar
 
         [System.Security.SecurityCritical]
         public override void GetObjectData(
-            System.Runtime.Serialization.SerializationInfo info, 
+            System.Runtime.Serialization.SerializationInfo info,
             System.Runtime.Serialization.StreamingContext context)
         {
             base.GetObjectData(info, context);
@@ -136,20 +137,10 @@ namespace Quartz.Impl.Calendar
         /// Setting will redefine the array of days excluded. The array must of size greater or
         /// equal 31.
         /// </summary>
-        public virtual ISet<DateTime> DaysExcluded
+        public virtual IReadOnlyCollection<DateTime> DaysExcluded
         {
-            get { return new SortedSet<DateTime>(excludeDays); }
-            set
-            {
-                if (value == null)
-                {
-                    excludeDays = new SortedSet<DateTime>();
-                }
-                else
-                {
-                    excludeDays = new SortedSet<DateTime>(value);
-                }
-            }
+            get => new SortedSet<DateTime>(excludeDays);
+            set => excludeDays = value == null ? new SortedSet<DateTime>() : new SortedSet<DateTime>(value);
         }
 
         /// <summary>
@@ -282,9 +273,9 @@ namespace Quartz.Impl.Calendar
         public override int GetHashCode()
         {
             int baseHash = 13;
-            if (GetBaseCalendar() != null)
+            if (CalendarBase != null)
             {
-                baseHash = GetBaseCalendar().GetHashCode();
+                baseHash = CalendarBase.GetHashCode();
             }
 
             return excludeDays.GetHashCode() + 5*baseHash;
@@ -297,7 +288,7 @@ namespace Quartz.Impl.Calendar
                 return false;
             }
 
-            bool toReturn = GetBaseCalendar() == null || GetBaseCalendar().Equals(obj.GetBaseCalendar());
+            bool toReturn = CalendarBase == null || CalendarBase.Equals(obj.CalendarBase);
 
             toReturn = toReturn && (DaysExcluded.Count == obj.DaysExcluded.Count);
             if (toReturn)

@@ -35,11 +35,7 @@ namespace Quartz.Util
             /// <param name="scheduler">The scheduler.</param>
             public QueuedTaskSchedulerDebugView(QueuedTaskScheduler scheduler)
             {
-                if (scheduler == null)
-                {
-                    throw new ArgumentNullException("scheduler");
-                }
-                _scheduler = scheduler;
+                _scheduler = scheduler ?? throw new ArgumentNullException("scheduler");
             }
 
             /// <summary>Gets all of the Tasks queued to the scheduler directly.</summary>
@@ -113,7 +109,7 @@ namespace Quartz.Util
         // ***
 
         /// <summary>Initializes the scheduler.</summary>
-        public QueuedTaskScheduler() : this(TaskScheduler.Default, 0)
+        public QueuedTaskScheduler() : this(Default, 0)
         {
         }
 
@@ -130,11 +126,6 @@ namespace Quartz.Util
             TaskScheduler targetScheduler,
             int maxConcurrencyLevel)
         {
-            // Validate arguments
-            if (targetScheduler == null)
-            {
-                throw new ArgumentNullException("underlyingScheduler");
-            }
             if (maxConcurrencyLevel < 0)
             {
                 throw new ArgumentOutOfRangeException("concurrencyLevel");
@@ -142,7 +133,7 @@ namespace Quartz.Util
 
             // Initialize only those fields relevant to use an underlying scheduler.  We don't
             // initialize the fields relevant to using our own custom threads.
-            _targetScheduler = targetScheduler;
+            _targetScheduler = targetScheduler ?? throw new ArgumentNullException("underlyingScheduler");
             _nonthreadsafeTaskQueue = new Queue<Task>();
 
             // If 0, use the number of logical processors.  But make sure whatever value we pick
@@ -157,7 +148,14 @@ namespace Quartz.Util
 
         /// <summary>Initializes the scheduler.</summary>
         /// <param name="threadCount">The number of threads to create and use for processing work items.</param>
-        public QueuedTaskScheduler(int threadCount) : this(threadCount, string.Empty, false, ThreadPriority.Normal, ApartmentState.MTA, null, null)
+        public QueuedTaskScheduler(int threadCount) 
+            : this(
+                threadCount, 
+                string.Empty, 
+                false,
+                ThreadPriority.Normal,
+                null, 
+                null)
         {
         }
 
@@ -166,7 +164,6 @@ namespace Quartz.Util
         /// <param name="threadName">The name to use for each of the created threads.</param>
         /// <param name="useForegroundThreads">A Boolean value that indicates whether to use foreground threads instead of background.</param>
         /// <param name="threadPriority">The priority to assign to each thread.</param>
-        /// <param name="threadApartmentState">The apartment state to use for each thread.</param>
         /// <param name="threadInit">An initialization routine to run on each thread.</param>
         /// <param name="threadFinally">A finalization routine to run on each thread.</param>
         public QueuedTaskScheduler(
@@ -174,7 +171,6 @@ namespace Quartz.Util
             string threadName = "",
             bool useForegroundThreads = false,
             ThreadPriority threadPriority = ThreadPriority.Normal,
-            ApartmentState threadApartmentState = ApartmentState.MTA,
             Action threadInit = null,
             Action threadFinally = null)
         {
@@ -211,9 +207,6 @@ namespace Quartz.Util
                 {
                     _threads[i].Name = threadName + " (" + i + ")";
                 }
-#if THREAD_APARTMENTSTATE
-                _threads[i].SetApartmentState(threadApartmentState);
-#endif // THREAD_APARTMENTSTATE
             }
 
             // Start all of the threads
@@ -613,11 +606,7 @@ namespace Quartz.Util
                 /// <param name="queue">The queue to be debugged.</param>
                 public QueuedTaskSchedulerQueueDebugView(QueuedTaskSchedulerQueue queue)
                 {
-                    if (queue == null)
-                    {
-                        throw new ArgumentNullException("queue");
-                    }
-                    _queue = queue;
+                    _queue = queue ?? throw new ArgumentNullException("queue");
                 }
 
                 /// <summary>Gets the priority of this queue in its associated scheduler.</summary>

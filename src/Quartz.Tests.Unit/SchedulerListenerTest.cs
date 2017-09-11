@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using NUnit.Framework;
 
 using Quartz.Impl;
-using Quartz.Logging;
 using Quartz.Util;
 
 namespace Quartz.Tests.Unit
@@ -119,6 +118,11 @@ namespace Quartz.Tests.Unit
             }
 
             public Task JobPaused(JobKey jobKey, CancellationToken cancellationToken)
+            {
+                return TaskUtil.CompletedTask;
+            }
+
+            public Task JobInterrupted(JobKey jobKey, CancellationToken cancellationToken = new CancellationToken())
             {
                 return TaskUtil.CompletedTask;
             }

@@ -22,11 +22,12 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Quartz.Logging;
 using Quartz.Impl.AdoJobStore;
+using Quartz.Logging;
 using Quartz.Spi;
 
 namespace Quartz.Core
@@ -42,8 +43,8 @@ namespace Quartz.Core
     /// <author>Marko Lahma (.NET)</author>
     public class QuartzSchedulerThread
     {
-        private QuartzScheduler qs;
-        private QuartzSchedulerResources qsRsrcs;
+        private readonly QuartzScheduler qs;
+        private readonly QuartzSchedulerResources qsRsrcs;
         private readonly object sigLock = new object();
 
         private bool signaled;
@@ -66,7 +67,7 @@ namespace Quartz.Core
         /// Gets the log.
         /// </summary>
         /// <value>The log.</value>
-        protected ILog Log { get; }
+        internal ILog Log { get; }
 
         /// <summary>
         /// Sets the idle wait time.
@@ -95,10 +96,7 @@ namespace Quartz.Core
         /// Gets a value indicating whether this <see cref="QuartzSchedulerThread"/> is paused.
         /// </summary>
         /// <value><c>true</c> if paused; otherwise, <c>false</c>.</value>
-        internal virtual bool Paused
-        {
-            get { return paused; }
-        }
+        internal virtual bool Paused => paused;
 
         /// <summary>
         /// Construct a new <see cref="QuartzSchedulerThread" /> for the given
@@ -265,7 +263,7 @@ namespace Quartz.Core
                             lastAcquireFailed = false;
                             if (Log.IsDebugEnabled())
                             {
-                                Log.DebugFormat("Batch acquisition of {0} triggers", (triggers == null ? 0 : triggers.Count));
+                                Log.DebugFormat("Batch acquisition of {0} triggers", triggers?.Count ?? 0);
                             }
                         }
                         catch (JobPersistenceException jpe)
@@ -341,7 +339,7 @@ namespace Quartz.Core
                             }
 
                             // set triggers to 'executing'
-                            IReadOnlyList<TriggerFiredResult> bndles = new List<TriggerFiredResult>();
+                            List<TriggerFiredResult> bndles = new List<TriggerFiredResult>();
 
                             bool goAhead;
                             lock (sigLock)
@@ -356,7 +354,7 @@ namespace Quartz.Core
                                     var res = await qsRsrcs.JobStore.TriggersFired(triggers, cancellationToken).ConfigureAwait(false);
                                     if (res != null)
                                     {
-                                        bndles = res;
+                                        bndles = res.ToList();
                                     }
                                 }
                                 catch (SchedulerException se)

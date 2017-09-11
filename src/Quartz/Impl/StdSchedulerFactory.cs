@@ -22,12 +22,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-#if CONFIGURATION
-using System.Configuration;
-#endif // CONFIGURATION
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Security;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Quartz.Core;
@@ -38,9 +37,9 @@ using Quartz.Logging;
 using Quartz.Simpl;
 using Quartz.Spi;
 using Quartz.Util;
-
-using System.Globalization;
-using System.Threading;
+#if CONFIGURATION
+using System.Configuration;
+#endif // CONFIGURATION
 
 namespace Quartz.Impl
 {
@@ -141,15 +140,9 @@ namespace Quartz.Impl
 
         private static readonly ILog log = LogProvider.GetLogger(typeof(StdSchedulerFactory));
 
-        private string SchedulerName
-        {
-            get { return cfg.GetStringProperty(PropertySchedulerInstanceName, "QuartzScheduler"); }
-        }
+        private string SchedulerName => cfg.GetStringProperty(PropertySchedulerInstanceName, "QuartzScheduler");
 
-        protected ILog Log
-        {
-            get { return log; }
-        }
+        private ILog Log => log;
 
         /// <summary>
         /// Returns a handle to the default Scheduler, creating it if it does not

@@ -60,8 +60,6 @@ namespace Quartz.Plugin.Xml
 
         private bool started;
 
-        private ITypeLoadHelper typeLoadHelper;
-
         private readonly HashSet<string> jobTriggerNameSet = new HashSet<string>();
 
         /// <summary>
@@ -76,13 +74,13 @@ namespace Quartz.Plugin.Xml
         /// Gets the log.
         /// </summary>
         /// <value>The log.</value>
-        protected ILog Log { get; }
+        private ILog Log { get; }
 
         public string Name { get; private set; }
 
         public IScheduler Scheduler { get; private set; }
 
-        protected ITypeLoadHelper TypeLoadHelper => typeLoadHelper;
+        protected ITypeLoadHelper TypeLoadHelper { get; private set; }
 
         /// <summary>
         /// Comma separated list of file names (with paths) to the XML files that should be read.
@@ -103,7 +101,13 @@ namespace Quartz.Plugin.Xml
         /// </summary>
         public bool FailOnFileNotFound { get; set; } = true;
 
-        public IEnumerable<KeyValuePair<string, JobFile>> JobFiles => jobFiles;
+        /// <summary>
+        /// Whether or not starting of the plugin should fail (throw an
+        /// exception) if the file cannot be handled. Default is <see langword="false" />.
+        /// </summary>
+        public virtual bool FailOnSchedulingError { get; set; }
+
+        public IReadOnlyCollection<KeyValuePair<string, JobFile>> JobFiles => jobFiles;
 
         public virtual Task FileUpdated(
             string fName,
@@ -128,8 +132,8 @@ namespace Quartz.Plugin.Xml
         {
             Name = pluginName;
             Scheduler = scheduler;
-            typeLoadHelper = new SimpleTypeLoadHelper();
-            typeLoadHelper.Initialize();
+            TypeLoadHelper = new SimpleTypeLoadHelper();
+            TypeLoadHelper.Initialize();
 
             Log.Info("Registering Quartz Job Initialization Plug-in.");
 
@@ -201,6 +205,10 @@ namespace Quartz.Plugin.Xml
             }
             catch (SchedulerException se)
             {
+                if (FailOnSchedulingError)
+                {
+                    throw;
+                }
                 Log.ErrorException("Error starting background-task for watching jobs file.", se);
             }
             finally
@@ -283,12 +291,20 @@ namespace Quartz.Plugin.Xml
                 await processor.ProcessFileAndScheduleJobs(
                     jobFile.FileName,
                     jobFile.FileName, // systemId
-                    Scheduler, 
+                    Scheduler,
                     cancellationToken).ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                Log.ErrorException("Error scheduling jobs: " + e.Message, e);
+                var message = "Could not schedule jobs and triggers from file " + jobFile.FileName + ": " + e.Message;
+                if (FailOnSchedulingError)
+                {
+                    throw new SchedulerException(message, e);
+                }
+                else
+                {
+                    Log.ErrorException(message, e);
+                }
             }
         }
 
@@ -340,7 +356,7 @@ namespace Quartz.Plugin.Xml
                     FileInfo file = new FileInfo(fName); // files in filesystem
                     if (!file.Exists)
                     {
-                        Uri url = plugin.typeLoadHelper.GetResource(FileName);
+                        Uri url = plugin.TypeLoadHelper.GetResource(FileName);
                         if (url != null)
                         {
                             furl = WebUtility.UrlDecode(url.AbsolutePath);

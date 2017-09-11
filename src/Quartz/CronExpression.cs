@@ -272,8 +272,6 @@ namespace Quartz
         private static readonly Dictionary<string, int> monthMap = new Dictionary<string, int>(20);
         private static readonly Dictionary<string, int> dayMap = new Dictionary<string, int>(60);
 
-        private readonly string cronExpressionString;
-
         private TimeZoneInfo timeZone;
 
         // Serializing TimeZones is tricky in .NET Core. This helper will ensure that we get the same timezone on a given platform,
@@ -283,8 +281,8 @@ namespace Quartz
         // More info: https://github.com/dotnet/corefx/issues/7757
         private string timeZoneInfoId
         {
-            get { return timeZone?.Id; }
-            set { timeZone = (value == null ? null : TimeZoneUtil.FindTimeZoneById(value)); }
+            get => timeZone?.Id;
+            set => timeZone = (value == null ? null : TimeZoneUtil.FindTimeZoneById(value));
         }
 
         /// <summary>
@@ -369,7 +367,7 @@ namespace Quartz
 #if BINARY_SERIALIZATION
         [NonSerialized]
 #endif // BINARY_SERIALIZATION
-        protected int lastdayOffset = 0;
+        protected int lastdayOffset;
 
         /// <summary>
         /// Calendar day of week.
@@ -394,6 +392,10 @@ namespace Quartz
         protected bool expressionParsed;
 
         public static readonly int MaxYear = DateTime.Now.Year + 100;
+
+        private static readonly char[] splitSeparators = { ' ', '\t', '\r', '\n' };
+        private static readonly char[] commaSeparator = { ',' };
+        private static readonly Regex regex = new Regex("^L-[0-9]*[W]?", RegexOptions.Compiled);
 
         static CronExpression()
         {
@@ -438,8 +440,8 @@ namespace Quartz
                 throw new ArgumentException("cronExpression cannot be null");
             }
 
-            cronExpressionString = CultureInfo.InvariantCulture.TextInfo.ToUpper(cronExpression);
-            BuildExpression(cronExpressionString);
+            CronExpressionString = CultureInfo.InvariantCulture.TextInfo.ToUpper(cronExpression);
+            BuildExpression(CronExpressionString);
         }
 
         /// <summary>
@@ -453,11 +455,13 @@ namespace Quartz
         /// <returns>a boolean indicating whether the given date satisfies the cron expression</returns>
         public virtual bool IsSatisfiedBy(DateTimeOffset dateUtc)
         {
-            DateTimeOffset test = new DateTimeOffset(dateUtc.Year, dateUtc.Month, dateUtc.Day, dateUtc.Hour, dateUtc.Minute, dateUtc.Second, dateUtc.Offset).AddSeconds(-1);
+            var withoutMilliseconds = new DateTimeOffset(dateUtc.Year, dateUtc.Month, dateUtc.Day, dateUtc.Hour, dateUtc.Minute, dateUtc.Second, dateUtc.Offset);
+            DateTimeOffset test = withoutMilliseconds.AddSeconds(-1);
 
             DateTimeOffset? timeAfter = GetTimeAfter(test);
 
-            if (timeAfter.HasValue && timeAfter.Value.Equals(dateUtc))
+            if (timeAfter.HasValue
+                && timeAfter.Value.Equals(withoutMilliseconds))
             {
                 return true;
             }
@@ -521,7 +525,7 @@ namespace Quartz
         /// </summary>
         public virtual TimeZoneInfo TimeZone
         {
-            set { timeZone = value; }
+            set => timeZone = value;
             get
             {
                 if (timeZone == null)
@@ -539,7 +543,7 @@ namespace Quartz
         /// <returns>The string representation of the <see cref="CronExpression" /></returns>
         public override string ToString()
         {
-            return cronExpressionString;
+            return CronExpressionString;
         }
 
         /// <summary>
@@ -616,9 +620,7 @@ namespace Quartz
 
                 int exprOn = Second;
 
-
-                string[] exprsTok = expression.Trim().Split(new char[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-
+                string[] exprsTok = expression.Split(splitSeparators, StringSplitOptions.RemoveEmptyEntries);
                 foreach (string exprTok in exprsTok)
                 {
                     string expr = exprTok.Trim();
@@ -633,12 +635,12 @@ namespace Quartz
                     }
 
                     // throw an exception if L is used with other days of the month
-                    if (exprOn == DayOfMonth && expr.IndexOf('L') != -1 && expr.Length > 1 && expr.IndexOf(",") >= 0)
+                    if (exprOn == DayOfMonth && expr.IndexOf('L') != -1 && expr.Length > 1 && expr.IndexOf(",", StringComparison.Ordinal) >= 0)
                     {
                         throw new FormatException("Support for specifying 'L' and 'LW' with other days of the month is not implemented");
                     }
                     // throw an exception if L is used with other days of the week
-                    if (exprOn == DayOfWeek && expr.IndexOf('L') != -1 && expr.Length > 1 && expr.IndexOf(",") >= 0)
+                    if (exprOn == DayOfWeek && expr.IndexOf('L') != -1 && expr.Length > 1 && expr.IndexOf(",", StringComparison.Ordinal) >= 0)
                     {
                         throw new FormatException("Support for specifying 'L' with other days of the week is not implemented");
                     }
@@ -647,7 +649,7 @@ namespace Quartz
                         throw new FormatException("Support for specifying multiple \"nth\" days is not implemented.");
                     }
 
-                    string[] vTok = expr.Split(',');
+                    string[] vTok = expr.Split(commaSeparator);
                     foreach (string v in vTok)
                     {
                         StoreExpressionVals(0, v, exprOn);
@@ -712,7 +714,7 @@ namespace Quartz
                 return i;
             }
             char c = s[i];
-            if ((c >= 'A') && (c <= 'Z') && (!s.Equals("L")) && (!s.Equals("LW")) && (!Regex.IsMatch(s, "^L-[0-9]*[W]?")))
+            if (c >= 'A' && c <= 'Z' && !s.Equals("L") && !s.Equals("LW") && !regex.IsMatch(s))
             {
                 string sub = s.Substring(i, 3);
                 int sval;
@@ -783,12 +785,15 @@ namespace Quartz
                             lastdayOfWeek = true;
                             i++;
                         }
+                        else
+                        {
+                            throw new FormatException($"Illegal characters for this position: '{sub}'");
+                        }
                     }
                 }
                 else
                 {
-                    throw new FormatException(
-                        $"Illegal characters for this position: '{sub}'");
+                    throw new FormatException($"Illegal characters for this position: '{sub}'");
                 }
                 if (eval != -1)
                 {
@@ -826,19 +831,19 @@ namespace Quartz
                 return i;
             }
 
-            if (c == '*' || c == '/')
+            var startsWithAsterisk = c == '*';
+            if (startsWithAsterisk || c == '/')
             {
-                if (c == '*' && (i + 1) >= s.Length)
+                if (startsWithAsterisk && i + 1 >= s.Length)
                 {
                     AddToSet(AllSpecInt, -1, incr, type);
                     return i + 1;
                 }
-                else if (c == '/'
-                         && ((i + 1) >= s.Length || s[i + 1] == ' ' || s[i + 1] == '\t'))
+                if (c == '/' && (i + 1 >= s.Length || s[i + 1] == ' ' || s[i + 1] == '\t'))
                 {
                     throw new FormatException("'/' must be followed by an integer.");
                 }
-                else if (c == '*')
+                if (startsWithAsterisk)
                 {
                     i++;
                 }
@@ -863,13 +868,18 @@ namespace Quartz
                     }
                 else
                 {
+                    if (startsWithAsterisk)
+                    {
+                        // invalid value s
+                        throw new FormatException("Illegal characters after asterisk: " + s);
+                    }
                     incr = 1;
                 }
 
                 AddToSet(AllSpecInt, -1, incr, type);
                 return i;
             }
-            else if (c == 'L')
+            if (c == 'L')
             {
                 i++;
                 if (type == DayOfMonth)
@@ -905,7 +915,7 @@ namespace Quartz
                 }
                 return i;
             }
-            else if (c >= '0' && c <= '9')
+            if (c >= '0' && c <= '9')
             {
                 int val = Convert.ToInt32(c.ToString(), CultureInfo.InvariantCulture);
                 i++;
@@ -1109,17 +1119,11 @@ namespace Quartz
                         i = vs.pos;
                         return i;
                     }
-                    else
-                    {
-                        AddToSet(val, end, v2, type);
-                        return i;
-                    }
-                }
-                else
-                {
-                    AddToSet(val, end, 1, type);
+                    AddToSet(val, end, v2, type);
                     return i;
                 }
+                AddToSet(val, end, 1, type);
+                return i;
             }
 
             if (c == '/')
@@ -1149,10 +1153,7 @@ namespace Quartz
                     i = vs.pos;
                     return i;
                 }
-                else
-                {
-                    throw new FormatException($"Unexpected character '{c}' after '/'");
-                }
+                throw new FormatException($"Unexpected character '{c}' after '/'");
             }
 
             AddToSet(val, end, 0, type);
@@ -1164,12 +1165,9 @@ namespace Quartz
 		/// Gets the cron expression string.
 		/// </summary>
 		/// <value>The cron expression string.</value>
-        public string CronExpressionString
-        {
-            get { return cronExpressionString; }
-        }
+        public string CronExpressionString { get; }
 
-		/// <summary>
+        /// <summary>
 		/// Gets the expression summary.
 		/// </summary>
 		/// <returns></returns>
@@ -1950,7 +1948,7 @@ namespace Quartz
                             // we are promoting the month
                             continue;
                         }
-                        else if (daysToAdd > 0 || dayShifted)
+                        if (daysToAdd > 0 || dayShifted)
                         {
                             d = new DateTimeOffset(d.Year, mon, day, 0, 0, 0, d.Offset);
                             // we are NOT promoting the month
@@ -1996,7 +1994,7 @@ namespace Quartz
                             // we are promoting the month
                             continue;
                         }
-                        else if (daysToAdd > 0)
+                        if (daysToAdd > 0)
                         {
                             // are we switching days?
                             d = new DateTimeOffset(d.Year, mon, day + daysToAdd, 0, 0, 0, d.Offset);
@@ -2064,7 +2062,7 @@ namespace Quartz
                 d = new DateTimeOffset(year, d.Month, d.Day, d.Hour, d.Minute, d.Second, d.Offset);
 
                 //apply the proper offset for this date
-                d = new DateTimeOffset(d.DateTime, TimeZoneUtil.GetUtcOffset(d.DateTime, this.TimeZone));
+                d = new DateTimeOffset(d.DateTime, TimeZoneUtil.GetUtcOffset(d.DateTime, TimeZone));
 
                 gotOne = true;
             } // while( !done )
@@ -2177,7 +2175,7 @@ namespace Quartz
 
         public void OnDeserialization(object sender)
         {
-            BuildExpression(cronExpressionString);
+            BuildExpression(CronExpressionString);
         }
 
         /// <summary>
@@ -2220,7 +2218,7 @@ namespace Quartz
         {
             unchecked
             {
-                return ((cronExpressionString != null ? cronExpressionString.GetHashCode() : 0)*397) ^ (timeZone != null ? timeZone.GetHashCode() : 0);
+                return ((CronExpressionString != null ? CronExpressionString.GetHashCode() : 0)*397) ^ (timeZone != null ? timeZone.GetHashCode() : 0);
             }
         }
     }
